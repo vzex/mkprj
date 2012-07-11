@@ -19,14 +19,16 @@
 ;; need shell commands:find,grep,xargs,cat,sed. Please make sure you have all of the shell commands in system
 ;; #Changes##################################
 ;; new prj-example
-;; (project-def "p"
+;;(project-def "p"
 ;;      '((basedir          "f:/trunk/program")
 ;;        (src-patterns     ("*.lua"))
 ;;        (subdir     ("game/" "etc/"))
 ;;        (vcs              svn)
-;;        (idle-index t)  ;;auto refresh index and tags when idle 
-;;        (startup-hook    project-index)))
-
+;;        (open-file-cache t)
+;;        (idle-index t)
+;;        (pre-startup-hook ecb-activate)
+;;        (startup-hook project-index)
+;;        ))
 ;;
 ;; Copyright (C) 2010  Matt Keller <mattkeller at gmail dot com>
 ;;
@@ -124,7 +126,7 @@ a shell command or the name of a function. Optional. Example: make -k.")
   "Hook function to run after the project is loaded. Optional. Project
 variables (e.g. mk-proj-basedir) will be set and can be referenced from this
 function.")
-
+(defvar mk-proj-pre-startup-hook nil)
 (defvar mk-proj-shutdown-hook nil
   "Hook function to run after the project is unloaded. Optional.  Project
 variables (e.g. mk-proj-basedir) will still be set and can be referenced
@@ -213,6 +215,7 @@ value is not used if a custom find command is set in
                               mk-proj-tags-file
                               mk-proj-compile-cmd
                               mk-proj-startup-hook
+                              mk-proj-pre-startup-hook
                               mk-proj-shutdown-hook
                               mk-proj-file-list-cache
                               mk-proj-open-file-cache
@@ -334,7 +337,7 @@ load time. See also `project-menu-remove'."
     ;; optional vars
     (dolist (v '(src-patterns ack-args vcs subdir open-file-cache
                  compile-cmd src-find-cmd grep-find-cmd idle-index
-                 index-find-cmd startup-hook shutdown-hook))
+                 index-find-cmd startup-hook pre-startup-hook shutdown-hook))
       (maybe-set-var v))
     (setq mk-proj-tags-file (concat mk-proj-basedir mk-proj-name "_tags"))
     (setq mk-proj-file-list-cache  (concat mk-proj-basedir mk-proj-name "_index"))
@@ -367,6 +370,8 @@ load time. See also `project-menu-remove'."
         (throw 'project-load t))
       (message "Loading project %s ..." name)
       (cd mk-proj-basedir)
+	  (when mk-proj-pre-startup-hook
+        (run-hooks 'mk-proj-pre-startup-hook))
       (mk-proj-tags-load)
       (mk-proj-fib-init)
       (mk-proj-visit-saved-open-files)
@@ -485,14 +490,20 @@ load time. See also `project-menu-remove'."
       (message "Reading open files from %s" mk-proj-open-files-cache)
       (with-temp-buffer
         (insert-file-contents mk-proj-open-files-cache)
-        (goto-char (point-min))
-        (while (not (eobp))
-          (let ((start (point)))
-            (while (not (eolp)) (forward-char)) ; goto end of line
-            (let ((line (buffer-substring start (point))))
-              (message "Attempting to open %s" line)
-              (find-file-noselect line t)))
-          (forward-line))))))
+		(let ((_filelist ()))
+		  (goto-char (point-min))
+		  (while (not (eobp))
+			(let ((start (point)))
+			  (while (not (eolp)) (forward-char)) ; goto end of line
+			  (let ((line (buffer-substring start (point))))
+				(setq _filelist (append _filelist (list line)))
+				))
+			(forward-line))
+		  (dolist (f _filelist)
+			(message "Attempting to open %s" f)
+			(find-file f)
+			))
+		  ))))
 
 ;; ---------------------------------------------------------------------
 ;; Etags
