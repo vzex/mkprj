@@ -93,6 +93,7 @@ expand-file-name. Example: ~me/my-proj/.")
   "if not nil ,search the subdir list from basedir,Otherwise,search all subdir from basedir")
 
 (defvar mk-proj-idle-index nil)
+(defvar mk-proj-default-config-dir "~/.emacs.d/mkprjs/")
 (defvar mk-proj-src-patterns nil
   "List of shell patterns to include in the TAGS file. Optional. Example:
 '(\"*.java\" \"*.jsp\").
@@ -215,7 +216,7 @@ value is not used if a custom find command is set in
                               mk-proj-tags-file
                               mk-proj-compile-cmd
                               mk-proj-startup-hook
-                              mk-proj-pre-startup-hook
+							  mk-proj-pre-startup-hook
                               mk-proj-shutdown-hook
                               mk-proj-file-list-cache
                               mk-proj-open-file-cache
@@ -314,7 +315,12 @@ load time. See also `project-menu-remove'."
 (defun project-def (proj-name config-alist)
   "Associate the settings in <config-alist> with project <proj-name>"
   (puthash proj-name config-alist mk-proj-list))
-
+(defun project-init ()
+  (setq mk-proj-list (make-hash-table :test 'equal))
+  (let ((filelist (directory-files mk-proj-default-config-dir nil "^\\([^.]\\|\\.[^.]\\|\\.\\..\\)")))
+	(dolist (file filelist) (load-file (concat mk-proj-default-config-dir "/" file))
+					  ))
+  )
 (defun mk-proj-defaults ()
   "Set all default values for project variables"
   (dolist (var mk-proj-proj-vars)
@@ -322,7 +328,7 @@ load time. See also `project-menu-remove'."
 
 (defun mk-proj-load-vars (proj-name proj-alist)
   "Set project variables from proj-alist"
-  (labels ((config-val (key)
+  (cl-labels ((config-val (key)
             (if (assoc key proj-alist)
                 (car (cdr (assoc key proj-alist)))
               nil))
@@ -344,7 +350,60 @@ load time. See also `project-menu-remove'."
  ;   (maybe-set-var 'open-file-cache #'expand-file-name)
     (if (eq nil mk-proj-open-file-cache) nil (setq mk-proj-open-files-cache (concat mk-proj-basedir mk-proj-name "_cache")))
     ))
-
+(defun project-delete (&optional name)
+  "Delete a project file"
+  (interactive)
+  (catch 'project-delete
+	(let ((name (or name (completing-read "Project Name: " (mk-proj-names))))
+		  )
+	(setq tempname (concat mk-proj-default-config-dir "/" name ".el"))
+	(if (file-exists-p tempname) 
+		(delete-file tempname))
+	(project-init)
+	))
+  )
+(defun project-create (&optional name)
+  "Create a project file"
+  (interactive)
+  (catch 'project-create
+	(let
+		((name (or name (read-string "Project Name: ")))
+		 (basedir (read-file-name "Basic dir: "))
+		 (filter (read-string "File Filter(ex:*.lua *.h *.cpp): "))
+		 (subdir (read-string "Sub Dir(ex:src/ include/):if empty, search all dirs "))
+		 (vcs (completing-read "svn or git?: " (list "svn" "git")))
+		 (openfilecache (completing-read "Need Cache OpenFile?: " (list "y" "n")))
+		 (idleindex (completing-read "Need auto index file when idle?: " (list "y" "n")))
+		 (prehook (completing-read "PreStartUpHookFunction(ex:ecb-activate): " (list "ecb-activate")))
+		 (startuphook (completing-read "StartUpHookFunction(ex:project-index): " (list "project-index")))
+		 )
+	  (if (file-exists-p mk-proj-default-config-dir) ()
+		(make-directory mk-proj-default-config-dir)
+      )
+	  
+	  (with-temp-buffer
+	    (insert "(project-def \"" name "\"\n" )
+		(insert "\t'((basedir\t\"" basedir "\")\n")
+		(if (not (string-equal filter "")) (insert "\t(src-patterns\t(" (mapconcat (function (lambda (x) (format "\"%s\"" x))) (split-string filter " " t " ") " ") "))\n"))
+		(if (not (string-equal subdir "")) (insert "\t(subdir\t(" (mapconcat (function (lambda (x) (format "\"%s/\"" x))) (split-string subdir " " t " ") " ") "))\n"))
+		(if (string-equal vcs "y") (insert "\t(vcs\t" vcs ")\n"))
+		(if (string-equal openfilecache "y") (insert "\t(open-file-cache\tt)\n"))
+		(if (string-equal idleindex "y") (insert "\t(idle-index\tt)\n"))
+		(if (not (string-equal prehook "")) (insert "\t(pre-startup-hook\t" prehook ")\n"))
+		(if (not (string-equal startuphook "")) (insert "\t(startup-hook\t" startuphook ")\n"))
+		(insert "))")
+		(setq tempname (concat mk-proj-default-config-dir "/" name ".el"))
+		(if (file-writable-p tempname)
+			(progn
+			  (write-region (point-min)
+							(point-max)
+							tempname)
+			  (message "Wrote Project file to %s" tempname))
+		  (message "Cannot write to %s" tempname)))
+	  (project-init)
+	  )
+	)
+)
 (defun project-load (&optional name)
   "Load a project's settings."
   (interactive)
@@ -913,6 +972,8 @@ completion. See also: `project-index', `project-find-file-ido'."
     'tools)
 
   ;; define the menu items in reverse order
+  (mk-proj-menu-item 'create   "Create Project"     'project-create t)
+  (mk-proj-menu-item 'delete   "Delete Project"     'project-delete t)
   (mk-proj-menu-item 'tags   "Build TAGS"     'project-tags)
   (mk-proj-menu-item 'index  "Build Index"    'project-index)
   (mk-proj-menu-item-separator 's2)
