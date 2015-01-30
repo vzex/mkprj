@@ -558,7 +558,7 @@ Counting starts at 0. Like `substring' but for lists."
   "Write the list of `files' to a file"
   (when mk-proj-open-files-cache
     (with-temp-buffer
-	  (if mk-proj-open-file-cache-maxn (dolist (f (_sublist (mapcar (lambda (b) (mk-proj-buffer-name b)) (mk-proj-buffers)) 0 mk-proj-open-file-cache-maxn))
+	  (if mk-proj-open-file-cache-maxn (dolist (f (reverse (_sublist (mapcar (lambda (b) (mk-proj-buffer-name b)) (reverse (mk-proj-buffers))) 0 mk-proj-open-file-cache-maxn)))
         (when f
           (unless (string-equal mk-proj-tags-file f)
             (insert f "\n"))))
