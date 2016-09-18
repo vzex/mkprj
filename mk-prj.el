@@ -184,7 +184,7 @@ directory.")
 (defvar mk-proj-index-find-cmd nil
   "Specifies a custom \"find\" command to use when building an
 listing of all files in the project (to be used by
-`project-find-file'). Optional. The value is either a string or a
+`project-find-files'). Optional. The value is either a string or a
 function of one argument that returns a string. The argument to
 the function will be the symbol \"'index\".
 
@@ -198,7 +198,7 @@ find command will be used and the `' and
 list of all the files under the project's basedir (minus those
 matching ignore-patterns) or, if index-find-cmd is set, the list
 of files found by calling the custom find command.  The list is
-used by `project-find-file' to quickly locate project files.")
+used by `project-find-files' to quickly locate project files.")
 
 (defconst mk-proj-vcs-path '((git . "'*/.git/*'")
                              (cvs . "'*/.CVS/*'")
@@ -816,7 +816,7 @@ With C-u prefix, start ack from the current directory."
     (message "Failed to generate the %s buffer!%s" mk-proj-fib-name event))))
 
 (defun project-index ()
-  "Regenerate the *file-index* buffer that is used for project-find-file"
+  "Regenerate the *file-index* buffer that is used for project-find-files"
   (interactive)
   (mk-proj-assert-proj)
   (if mk-proj-index-running
@@ -862,7 +862,7 @@ file-relative-name, file-name-as-directory"
           (concat (char-to-string (+ c1 32)) (substring file 1))
         file))))
 
-(defun* project-find-file (regex)
+(defun* project-find-files (regex)
   "Find file in the current project matching the given regex.
 
 The files listed in buffer *file-index* are scanned for regex
@@ -872,8 +872,8 @@ completion. See also: `project-index', `project-find-file-ido'."
   (interactive "sFind file in project matching: ")
   (mk-proj-assert-proj)
   (unless mk-proj-file-list-map
-    (message "Please use project-index to create the index before running project-find-file")
-    (return-from "project-find-file" nil))
+    (message "Please use project-index to create the index before running project-find-files")
+    (return-from "project-find-files" nil))
     (let* (
 	   (pre (replace-regexp-in-string "\\." "\\\\." regex))
 	   (regex2 (replace-regexp-in-string "\*" ".*" pre))
